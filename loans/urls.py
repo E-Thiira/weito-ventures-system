@@ -10,6 +10,8 @@ from .views import (
     MpesaSTKPushView,
     OutstandingLoansReportView,
     OverdueLoansReportView,
+    SystemHealthView,
+    SystemMetricsView,
     health_check,
     mpesa_callback,
     request_client_otp,
@@ -30,4 +32,6 @@ urlpatterns = [
     path("reports/outstanding-loans/", OutstandingLoansReportView.as_view(), name="report-outstanding-loans"),
     path("reports/overdue-loans/", OverdueLoansReportView.as_view(), name="report-overdue-loans"),
     path("reports/monthly-performance/", MonthlyPerformanceReportView.as_view(), name="report-monthly-performance"),
+    path("system/health/", SystemHealthView.as_view(), name="system-health"),
+    path("system/metrics/", SystemMetricsView.as_view(), name="system-metrics"),
 ]

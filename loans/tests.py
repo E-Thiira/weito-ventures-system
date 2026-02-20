@@ -5,6 +5,7 @@ from unittest.mock import patch
 from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
+from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -18,6 +19,11 @@ class LoanAutomationIntegrationTests(APITestCase):
 		self.client_record = Client(name="John Doe", phone_number="254700000001")
 		self.client_record.set_id_number("12345678")
 		self.client_record.save()
+		self.staff_user = get_user_model().objects.create_superuser(
+			username="admin",
+			email="admin@example.com",
+			password="secure-pass-123",
+		)
 
 	def create_loan(self, amount="1000.00", due_date=None):
 		due = due_date or (timezone.localdate() + timedelta(days=7))
@@ -142,3 +148,17 @@ class LoanAutomationIntegrationTests(APITestCase):
 				reminder_type=LoanReminderLog.ReminderType.DUE_SOON,
 			).exists()
 		)
+
+	def test_system_health_endpoint_is_public(self):
+		response = self.client.get(reverse("system-health"))
+		self.assertEqual(response.status_code, status.HTTP_200_OK)
+		self.assertIn("status", response.data)
+
+	def test_system_metrics_requires_auth_and_returns_data(self):
+		unauth = self.client.get(reverse("system-metrics"))
+		self.assertIn(unauth.status_code, [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN])
+
+		self.client.force_authenticate(user=self.staff_user)
+		auth = self.client.get(reverse("system-metrics"))
+		self.assertEqual(auth.status_code, status.HTTP_200_OK)
+		self.assertIn("loan_count", auth.data)

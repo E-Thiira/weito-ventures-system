@@ -1,9 +1,11 @@
 import hashlib
 import hmac
 import secrets
+from datetime import timedelta
 from decimal import Decimal
 
 from django.conf import settings
+from django.db import connection
 from django.db import IntegrityError
 from django.db.models import Count, Q, Sum
 from django.utils import timezone
@@ -19,7 +21,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .auth import ClientTokenAuthentication
-from .models import Client, ClientAccessToken, ClientOTP, Loan, Payment, SuspiciousActivityLog
+from .models import AuditLog, Client, ClientAccessToken, ClientOTP, Loan, Payment, SuspiciousActivityLog
 from .permissions import IsClientAuthenticated, IsLoanOfficer
 from .serializers import (
     ClientLoanSummarySerializer,
@@ -367,5 +369,59 @@ class MonthlyPerformanceReportView(APIView):
                 "as_of": today,
                 "collections": {"total": monthly_total, "payments_count": monthly_payments.count()},
                 "loans": loan_summary,
+            }
+        )
+
+
+class SystemHealthView(APIView):
+    permission_classes = [AllowAny]
+
+    @extend_schema(responses=dict)
+    def get(self, request):
+        database_ok = True
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT 1")
+                cursor.fetchone()
+        except Exception:
+            database_ok = False
+
+        return Response(
+            {
+                "status": "ok" if database_ok else "degraded",
+                "database": "ok" if database_ok else "error",
+                "time": timezone.now(),
+            }
+        )
+
+
+class SystemMetricsView(APIView):
+    authentication_classes = [SessionAuthentication, BasicAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(responses=dict)
+    def get(self, request):
+        now = timezone.now()
+        since = now - timedelta(minutes=15)
+        recent_audits = AuditLog.objects.filter(created_at__gte=since)
+
+        durations = [
+            row.metadata.get("duration_ms")
+            for row in recent_audits
+            if isinstance(row.metadata, dict) and row.metadata.get("duration_ms") is not None
+        ]
+        avg_duration = round(sum(durations) / len(durations), 2) if durations else 0
+
+        return Response(
+            {
+                "as_of": now,
+                "loan_count": Loan.objects.count(),
+                "active_loans": Loan.objects.filter(status=Loan.Status.ACTIVE).count(),
+                "overdue_loans": Loan.objects.filter(status=Loan.Status.OVERDUE).count(),
+                "payment_count": Payment.objects.count(),
+                "unresolved_suspicious_events": SuspiciousActivityLog.objects.filter(resolved=False).count(),
+                "api_requests_last_15m": recent_audits.count(),
+                "avg_api_duration_ms_last_15m": avg_duration,
+                "error_requests_last_15m": recent_audits.filter(status_code__gte=500).count(),
             }
         )
