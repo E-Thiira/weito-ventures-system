@@ -9,11 +9,12 @@ from django.db.models import Count, Q, Sum
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
+from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.authentication import BasicAuthentication, SessionAuthentication
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.parsers import JSONParser
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -22,9 +23,17 @@ from .models import Client, ClientAccessToken, ClientOTP, Loan, Payment
 from .permissions import IsClientAuthenticated, IsLoanOfficer
 from .serializers import (
     ClientLoanSummarySerializer,
+    DailyCollectionsSerializer,
+    HealthCheckResponseSerializer,
     LoanApprovalSerializer,
+    MonthlyPerformanceSerializer,
+    MpesaCallbackAckSerializer,
     OTPRequestSerializer,
+    OTPRequestResponseSerializer,
+    OTPVerifyResponseSerializer,
     OTPVerifySerializer,
+    OutstandingLoansSerializer,
+    OverdueLoansSerializer,
     PaymentHistorySerializer,
     STKPushSerializer,
 )
@@ -32,14 +41,18 @@ from .services.mpesa import MpesaService
 from .services.sms import send_with_fallback
 
 
+@extend_schema(responses=HealthCheckResponseSerializer)
 @api_view(["GET"])
+@permission_classes([AllowAny])
 async def health_check(request):
     return Response({"status": "ok", "service": "weito_backend"})
 
 
 class MpesaSTKPushView(APIView):
     parser_classes = [JSONParser]
+    permission_classes = [AllowAny]
 
+    @extend_schema(request=STKPushSerializer, responses=dict)
     def post(self, request):
         serializer = STKPushSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -65,7 +78,9 @@ class MpesaSTKPushView(APIView):
         return Response(result)
 
 
+@extend_schema(request=dict, responses=MpesaCallbackAckSerializer)
 @api_view(["POST"])
+@permission_classes([AllowAny])
 def mpesa_callback(request, token: str, loan_id: int):
     if not secrets.compare_digest(token, settings.MPESA_CALLBACK_TOKEN):
         return Response({"detail": "Unauthorized callback."}, status=status.HTTP_403_FORBIDDEN)
@@ -118,7 +133,9 @@ def mpesa_callback(request, token: str, loan_id: int):
     return Response({"ResultCode": 0, "ResultDesc": "Accepted"})
 
 
+@extend_schema(request=OTPRequestSerializer, responses=OTPRequestResponseSerializer)
 @api_view(["POST"])
+@permission_classes([AllowAny])
 def request_client_otp(request):
     serializer = OTPRequestSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
@@ -133,7 +150,9 @@ def request_client_otp(request):
     return Response({"detail": "OTP sent", "otp_id": otp_record.id})
 
 
+@extend_schema(request=OTPVerifySerializer, responses=OTPVerifyResponseSerializer)
 @api_view(["POST"])
+@permission_classes([AllowAny])
 def verify_client_otp(request):
     serializer = OTPVerifySerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
@@ -156,6 +175,7 @@ class ClientLoanSummaryView(APIView):
     authentication_classes = [ClientTokenAuthentication]
     permission_classes = [IsClientAuthenticated]
 
+    @extend_schema(responses=dict)
     def get(self, request):
         loans = Loan.objects.filter(client=request.user).order_by("-created_at")
         serialized = ClientLoanSummarySerializer(loans, many=True)
@@ -176,6 +196,7 @@ class ClientPaymentHistoryView(APIView):
     authentication_classes = [ClientTokenAuthentication]
     permission_classes = [IsClientAuthenticated]
 
+    @extend_schema(responses=PaymentHistorySerializer(many=True))
     def get(self, request):
         payments = Payment.objects.filter(loan__client=request.user).select_related("loan").order_by("-paid_at")
         serialized = PaymentHistorySerializer(payments, many=True)
@@ -186,6 +207,7 @@ class LoanApprovalView(APIView):
     authentication_classes = [SessionAuthentication, BasicAuthentication]
     permission_classes = [IsAuthenticated, IsLoanOfficer]
 
+    @extend_schema(request=LoanApprovalSerializer, responses=dict)
     def post(self, request, loan_id: int):
         serializer = LoanApprovalSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -223,6 +245,7 @@ class DailyCollectionsReportView(APIView):
     authentication_classes = [SessionAuthentication, BasicAuthentication]
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(responses=DailyCollectionsSerializer)
     def get(self, request):
         today = timezone.localdate()
         payments = Payment.objects.filter(paid_at__date=today)
@@ -235,6 +258,7 @@ class OutstandingLoansReportView(APIView):
     authentication_classes = [SessionAuthentication, BasicAuthentication]
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(responses=OutstandingLoansSerializer)
     def get(self, request):
         loans = Loan.objects.exclude(status=Loan.Status.PAID)
         outstanding_total = Decimal("0.00")
@@ -248,6 +272,7 @@ class OverdueLoansReportView(APIView):
     authentication_classes = [SessionAuthentication, BasicAuthentication]
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(responses=OverdueLoansSerializer)
     def get(self, request):
         today = timezone.localdate()
         overdue_loans = Loan.objects.filter(due_date__lt=today).exclude(status=Loan.Status.PAID)
@@ -259,6 +284,7 @@ class MonthlyPerformanceReportView(APIView):
     authentication_classes = [SessionAuthentication, BasicAuthentication]
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(responses=MonthlyPerformanceSerializer)
     def get(self, request):
         today = timezone.localdate()
         month_start = today.replace(day=1)

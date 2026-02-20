@@ -1,0 +1,481 @@
+openapi: 3.0.3
+info:
+  title: Weito Ventures API
+  version: 1.0.0
+  description: Microfinance backend APIs for loans, payments, reminders, and automation.
+paths:
+  /api/client/auth/request-otp/:
+    post:
+      operationId: client_auth_request_otp_create
+      tags:
+      - client
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OTPRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OTPRequestResponse'
+          description: ''
+  /api/client/auth/verify-otp/:
+    post:
+      operationId: client_auth_verify_otp_create
+      tags:
+      - client
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OTPVerify'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OTPVerifyResponse'
+          description: ''
+  /api/client/loans/summary/:
+    get:
+      operationId: client_loans_summary_retrieve
+      tags:
+      - client
+      security:
+      - ClientBearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/client/payments/history/:
+    get:
+      operationId: client_payments_history_list
+      tags:
+      - client
+      security:
+      - ClientBearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PaymentHistory'
+          description: ''
+  /api/health/:
+    get:
+      operationId: health_retrieve
+      tags:
+      - health
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthCheckResponse'
+          description: ''
+  /api/loans/{loan_id}/approve/:
+    post:
+      operationId: loans_approve_create
+      parameters:
+      - in: path
+        name: loan_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - loans
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoanApproval'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/mpesa/callback/{token}/{loan_id}/:
+    post:
+      operationId: mpesa_callback_create
+      parameters:
+      - in: path
+        name: loan_id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: token
+        schema:
+          type: string
+        required: true
+      tags:
+      - mpesa
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: {}
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MpesaCallbackAck'
+          description: ''
+  /api/mpesa/stk-push/:
+    post:
+      operationId: mpesa_stk_push_create
+      tags:
+      - mpesa
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/STKPush'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/reports/daily-collections/:
+    get:
+      operationId: reports_daily_collections_retrieve
+      tags:
+      - reports
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DailyCollections'
+          description: ''
+  /api/reports/monthly-performance/:
+    get:
+      operationId: reports_monthly_performance_retrieve
+      tags:
+      - reports
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonthlyPerformance'
+          description: ''
+  /api/reports/outstanding-loans/:
+    get:
+      operationId: reports_outstanding_loans_retrieve
+      tags:
+      - reports
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OutstandingLoans'
+          description: ''
+  /api/reports/overdue-loans/:
+    get:
+      operationId: reports_overdue_loans_retrieve
+      tags:
+      - reports
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OverdueLoans'
+          description: ''
+components:
+  schemas:
+    ActionEnum:
+      enum:
+      - APPROVE
+      - REJECT
+      type: string
+      description: |-
+        * `APPROVE` - APPROVE
+        * `REJECT` - REJECT
+    ApprovalStatusEnum:
+      enum:
+      - PENDING
+      - APPROVED
+      - REJECTED
+      type: string
+      description: |-
+        * `PENDING` - Pending
+        * `APPROVED` - Approved
+        * `REJECTED` - Rejected
+    ClientLoanSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        status:
+          type: string
+          readOnly: true
+        due_date:
+          type: string
+          format: date
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        balance:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+        approval_status:
+          $ref: '#/components/schemas/ApprovalStatusEnum'
+      required:
+      - amount
+      - balance
+      - created_at
+      - due_date
+      - id
+      - status
+    DailyCollections:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        total_collections:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        payments_count:
+          type: integer
+      required:
+      - date
+      - payments_count
+      - total_collections
+    HealthCheckResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        service:
+          type: string
+      required:
+      - service
+      - status
+    LoanApproval:
+      type: object
+      properties:
+        action:
+          $ref: '#/components/schemas/ActionEnum'
+      required:
+      - action
+    MonthlyPerformance:
+      type: object
+      properties:
+        month_start:
+          type: string
+          format: date
+        as_of:
+          type: string
+          format: date
+        collections:
+          type: object
+          additionalProperties: {}
+        loans:
+          type: object
+          additionalProperties: {}
+      required:
+      - as_of
+      - collections
+      - loans
+      - month_start
+    MpesaCallbackAck:
+      type: object
+      properties:
+        ResultCode:
+          type: integer
+        ResultDesc:
+          type: string
+      required:
+      - ResultCode
+      - ResultDesc
+    OTPRequest:
+      type: object
+      properties:
+        phone_number:
+          type: string
+          maxLength: 20
+      required:
+      - phone_number
+    OTPRequestResponse:
+      type: object
+      properties:
+        detail:
+          type: string
+        otp_id:
+          type: integer
+      required:
+      - detail
+      - otp_id
+    OTPVerify:
+      type: object
+      properties:
+        phone_number:
+          type: string
+          maxLength: 20
+        otp:
+          type: string
+          maxLength: 10
+          minLength: 4
+      required:
+      - otp
+      - phone_number
+    OTPVerifyResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+      required:
+      - access_token
+      - expires_at
+    OutstandingLoans:
+      type: object
+      properties:
+        outstanding_loans_count:
+          type: integer
+        outstanding_total:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+      required:
+      - outstanding_loans_count
+      - outstanding_total
+    OverdueLoans:
+      type: object
+      properties:
+        overdue_count:
+          type: integer
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClientLoanSummary'
+      required:
+      - overdue_count
+      - results
+    PaymentHistory:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        loan_id:
+          type: integer
+          readOnly: true
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        mpesa_receipt:
+          type: string
+          maxLength: 50
+        phone:
+          type: string
+          maxLength: 20
+        paid_at:
+          type: string
+          format: date-time
+      required:
+      - amount
+      - id
+      - loan_id
+      - mpesa_receipt
+      - phone
+    STKPush:
+      type: object
+      properties:
+        loan_id:
+          type: integer
+        phone:
+          type: string
+          maxLength: 20
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+      required:
+      - amount
+      - loan_id
+      - phone
+  securitySchemes:
+    ClientBearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: Token
+      description: Client portal access token from OTP verification
+    basicAuth:
+      type: http
+      scheme: basic
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sessionid
