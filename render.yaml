@@ -1,0 +1,47 @@
+services:
+  - type: web
+    name: weito-backend-web
+    env: python
+    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate
+    startCommand: gunicorn weito_backend.wsgi:application --log-file -
+    envVars:
+      - key: DJANGO_ENV
+        value: production
+      - key: DJANGO_DEBUG
+        value: "False"
+      - key: DATABASE_URL
+        sync: false
+      - key: DJANGO_SECRET_KEY
+        sync: false
+      - key: CELERY_BROKER_URL
+        sync: false
+
+  - type: worker
+    name: weito-backend-celery
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: celery -A weito_backend worker --loglevel=info
+    envVars:
+      - key: DJANGO_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: DJANGO_SECRET_KEY
+        sync: false
+      - key: CELERY_BROKER_URL
+        sync: false
+
+  - type: worker
+    name: weito-backend-beat
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: celery -A weito_backend beat --loglevel=info
+    envVars:
+      - key: DJANGO_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: DJANGO_SECRET_KEY
+        sync: false
+      - key: CELERY_BROKER_URL
+        sync: false
