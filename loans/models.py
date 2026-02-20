@@ -124,6 +124,8 @@ class Loan(models.Model):
 
 	@property
 	def total_paid(self) -> Decimal:
+		if not self.pk:
+			return Decimal("0.00")
 		aggregate = self.payments.aggregate(total=Sum("amount"))
 		return aggregate["total"] or Decimal("0.00")
 

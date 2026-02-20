@@ -119,6 +119,9 @@ def mpesa_callback(request, token: str, loan_id: int):
     if not mpesa_receipt or amount is None:
         return Response({"ResultCode": 0, "ResultDesc": "Accepted"})
 
+    if Payment.objects.filter(mpesa_receipt=mpesa_receipt).exists():
+        return Response({"ResultCode": 0, "ResultDesc": "Accepted"})
+
     try:
         Payment.objects.create(
             loan=loan,
