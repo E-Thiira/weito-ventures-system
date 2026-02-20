@@ -23,6 +23,7 @@ from .models import Client, ClientAccessToken, ClientOTP, Loan, Payment
 from .permissions import IsClientAuthenticated, IsLoanOfficer
 from .serializers import (
     ClientLoanSummarySerializer,
+    ClientLoanApplicationSerializer,
     DailyCollectionsSerializer,
     HealthCheckResponseSerializer,
     LoanApprovalSerializer,
@@ -204,6 +205,33 @@ class ClientPaymentHistoryView(APIView):
         payments = Payment.objects.filter(loan__client=request.user).select_related("loan").order_by("-paid_at")
         serialized = PaymentHistorySerializer(payments, many=True)
         return Response({"results": serialized.data})
+
+
+class ClientLoanApplicationView(APIView):
+    authentication_classes = [ClientTokenAuthentication]
+    permission_classes = [IsClientAuthenticated]
+
+    @extend_schema(request=ClientLoanApplicationSerializer, responses=dict)
+    def post(self, request):
+        serializer = ClientLoanApplicationSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+
+        loan = Loan.objects.create(
+            client=request.user,
+            amount=serializer.validated_data["amount"],
+            due_date=serializer.validated_data["due_date"],
+            approval_status=Loan.ApprovalStatus.PENDING,
+        )
+        return Response(
+            {
+                "loan_id": loan.id,
+                "status": loan.status,
+                "approval_status": loan.approval_status,
+                "amount": loan.amount,
+                "due_date": loan.due_date,
+            },
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class LoanApprovalView(APIView):

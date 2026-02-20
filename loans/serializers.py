@@ -96,3 +96,19 @@ class STKPushSerializer(serializers.Serializer):
             raise serializers.ValidationError("Amount cannot exceed outstanding balance")
         attrs["loan"] = loan
         return attrs
+
+
+class ClientLoanApplicationSerializer(serializers.Serializer):
+    amount = serializers.DecimalField(max_digits=12, decimal_places=2)
+    due_date = serializers.DateField()
+
+    def validate(self, attrs):
+        request = self.context["request"]
+        client = request.user
+        if attrs["amount"] <= 0:
+            raise serializers.ValidationError("Amount must be greater than zero")
+        if attrs["amount"] > client.max_loan_limit:
+            raise serializers.ValidationError(
+                f"Requested amount exceeds your limit ({client.max_loan_limit})."
+            )
+        return attrs

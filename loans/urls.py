@@ -2,6 +2,7 @@ from django.urls import path
 
 from .views import (
     ClientLoanSummaryView,
+    ClientLoanApplicationView,
     ClientPaymentHistoryView,
     DailyCollectionsReportView,
     LoanApprovalView,
@@ -20,6 +21,7 @@ urlpatterns = [
     path("client/auth/request-otp/", request_client_otp, name="client-request-otp"),
     path("client/auth/verify-otp/", verify_client_otp, name="client-verify-otp"),
     path("client/loans/summary/", ClientLoanSummaryView.as_view(), name="client-loan-summary"),
+    path("client/loans/apply/", ClientLoanApplicationView.as_view(), name="client-loan-apply"),
     path("client/payments/history/", ClientPaymentHistoryView.as_view(), name="client-payment-history"),
     path("mpesa/stk-push/", MpesaSTKPushView.as_view(), name="mpesa-stk-push"),
     path("mpesa/callback/<str:token>/<int:loan_id>/", mpesa_callback, name="mpesa-callback"),
