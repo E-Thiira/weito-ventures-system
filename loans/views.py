@@ -19,7 +19,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .auth import ClientTokenAuthentication
-from .models import Client, ClientAccessToken, ClientOTP, Loan, Payment
+from .models import Client, ClientAccessToken, ClientOTP, Loan, Payment, SuspiciousActivityLog
 from .permissions import IsClientAuthenticated, IsLoanOfficer
 from .serializers import (
     ClientLoanSummarySerializer,
@@ -120,13 +120,47 @@ def mpesa_callback(request, token: str, loan_id: int):
     if not mpesa_receipt or amount is None:
         return Response({"ResultCode": 0, "ResultDesc": "Accepted"})
 
+    try:
+        amount_decimal = Decimal(str(amount))
+    except Exception:
+        SuspiciousActivityLog.objects.create(
+            category="INVALID_AMOUNT",
+            reference=f"loan:{loan.id}",
+            severity="HIGH",
+            details={"amount": amount, "receipt": mpesa_receipt},
+        )
+        return Response({"ResultCode": 0, "ResultDesc": "Accepted"})
+
+    if amount_decimal <= 0:
+        SuspiciousActivityLog.objects.create(
+            category="NON_POSITIVE_AMOUNT",
+            reference=f"loan:{loan.id}",
+            severity="HIGH",
+            details={"amount": str(amount_decimal), "receipt": mpesa_receipt},
+        )
+        return Response({"ResultCode": 0, "ResultDesc": "Accepted"})
+
+    if amount_decimal > loan.balance:
+        SuspiciousActivityLog.objects.create(
+            category="OVERPAYMENT_ATTEMPT",
+            reference=f"loan:{loan.id}",
+            severity="HIGH",
+            details={"amount": str(amount_decimal), "balance": str(loan.balance), "receipt": mpesa_receipt},
+        )
+        return Response({"ResultCode": 0, "ResultDesc": "Accepted"})
+
     if Payment.objects.filter(mpesa_receipt=mpesa_receipt).exists():
+        SuspiciousActivityLog.objects.get_or_create(
+            category="DUPLICATE_RECEIPT",
+            reference=mpesa_receipt,
+            defaults={"severity": "MEDIUM", "details": {"loan_id": loan.id}},
+        )
         return Response({"ResultCode": 0, "ResultDesc": "Accepted"})
 
     try:
         Payment.objects.create(
             loan=loan,
-            amount=amount,
+            amount=amount_decimal,
             mpesa_receipt=mpesa_receipt,
             phone=phone,
             raw_payload=payload,

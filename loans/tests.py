@@ -8,7 +8,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from loans.models import Client, Loan, LoanReminderLog, Payment
+from loans.models import Client, Loan, LoanReminderLog, Payment, SuspiciousActivityLog
 from loans.tasks import send_due_soon_reminders
 
 
@@ -78,6 +78,37 @@ class LoanAutomationIntegrationTests(APITestCase):
 		self.client.post(url, payload, format="json")
 
 		self.assertEqual(Payment.objects.filter(loan=loan, mpesa_receipt="DUPL111").count(), 1)
+		self.assertTrue(
+			SuspiciousActivityLog.objects.filter(reference=f"loan:{loan.id}", category="OVERPAYMENT_ATTEMPT").exists()
+			or SuspiciousActivityLog.objects.filter(category="DUPLICATE_RECEIPT", reference="DUPL111").exists()
+		)
+
+	@override_settings(MPESA_CALLBACK_TOKEN="test-token", MPESA_WEBHOOK_SECRET="")
+	@patch("loans.signals.send_payment_confirmation_sms.delay")
+	def test_overpayment_attempt_is_blocked_and_logged(self, _mock_delay):
+		loan = self.create_loan(amount="500.00")
+		url = reverse("mpesa-callback", kwargs={"token": "test-token", "loan_id": loan.id})
+		payload = {
+			"Body": {
+				"stkCallback": {
+					"ResultCode": 0,
+					"CallbackMetadata": {
+						"Item": [
+							{"Name": "Amount", "Value": 800},
+							{"Name": "MpesaReceiptNumber", "Value": "OVERP1"},
+							{"Name": "PhoneNumber", "Value": 254700000001},
+						]
+					},
+				}
+			}
+		}
+
+		response = self.client.post(url, payload, format="json")
+		self.assertEqual(response.status_code, status.HTTP_200_OK)
+		self.assertFalse(Payment.objects.filter(mpesa_receipt="OVERP1").exists())
+		self.assertTrue(
+			SuspiciousActivityLog.objects.filter(category="OVERPAYMENT_ATTEMPT", reference=f"loan:{loan.id}").exists()
+		)
 
 	@patch("loans.signals.send_payment_confirmation_sms.delay")
 	@patch("loans.tasks.send_with_fallback", return_value=True)

@@ -6,7 +6,7 @@ from django.core.management import call_command
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
-from .models import AuditLog, Loan, LoanReminderLog, NotificationLog, Payment
+from .models import AuditLog, Loan, LoanReminderLog, NotificationLog, Payment, SuspiciousActivityLog
 from .services.credit import recompute_client_credit
 from .services.sms import send_with_fallback
 
@@ -135,3 +135,39 @@ def retry_failed_notifications(self):
 @shared_task
 def run_daily_backup():
     call_command("backup_db")
+
+
+@shared_task
+def check_suspicious_transactions():
+    for loan in Loan.objects.all():
+        if loan.total_paid > loan.amount:
+            SuspiciousActivityLog.objects.get_or_create(
+                category="OVERPAYMENT",
+                reference=f"loan:{loan.id}",
+                defaults={
+                    "severity": "HIGH",
+                    "details": {
+                        "loan_id": loan.id,
+                        "loan_amount": str(loan.amount),
+                        "total_paid": str(loan.total_paid),
+                    },
+                },
+            )
+
+    unresolved = SuspiciousActivityLog.objects.filter(resolved=False).order_by("created_at")[:10]
+    if not unresolved:
+        return
+
+    from django.conf import settings
+
+    if not settings.ADMIN_ALERT_PHONE:
+        return
+
+    for event in unresolved:
+        sent = send_with_fallback(
+            settings.ADMIN_ALERT_PHONE,
+            f"Suspicious activity: {event.category} ({event.reference}) severity={event.severity}",
+        )
+        if sent:
+            event.resolved = True
+            event.save(update_fields=["resolved"])

@@ -9,6 +9,7 @@ from .models import (
 	LoanReminderLog,
 	NotificationLog,
 	Payment,
+	SuspiciousActivityLog,
 )
 
 
@@ -110,3 +111,10 @@ class AuditLogAdmin(ReadOnlyAdmin):
 	list_display = ("id", "actor", "method", "endpoint", "status_code", "created_at")
 	list_filter = ("method", "status_code", "created_at")
 	readonly_fields = ("actor", "action", "endpoint", "method", "status_code", "metadata", "created_at")
+
+
+@admin.register(SuspiciousActivityLog)
+class SuspiciousActivityLogAdmin(ReadOnlyAdmin):
+	list_display = ("id", "category", "reference", "severity", "resolved", "created_at")
+	list_filter = ("category", "severity", "resolved", "created_at")
+	readonly_fields = ("category", "reference", "severity", "details", "resolved", "created_at")

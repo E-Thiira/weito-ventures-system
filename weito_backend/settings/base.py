@@ -134,6 +134,7 @@ FIELD_ENCRYPTION_KEY = os.getenv("FIELD_ENCRYPTION_KEY", "")
 DATA_HASH_SALT = os.getenv("DATA_HASH_SALT", SECRET_KEY)
 SYSTEM_AUTOMATION_TOKEN = os.getenv("SYSTEM_AUTOMATION_TOKEN", "")
 DB_BACKUP_DIR = os.getenv("DB_BACKUP_DIR", str(BASE_DIR / "backups"))
+ADMIN_ALERT_PHONE = os.getenv("ADMIN_ALERT_PHONE", "")
 
 CACHES = {
     "default": {
@@ -180,5 +181,9 @@ CELERY_BEAT_SCHEDULE = {
     "retry-failed-notifications": {
         "task": "loans.tasks.retry_failed_notifications",
         "schedule": crontab(minute="*/30"),
+    },
+    "check-suspicious-transactions": {
+        "task": "loans.tasks.check_suspicious_transactions",
+        "schedule": crontab(minute="*/15"),
     },
 }

@@ -297,3 +297,15 @@ class AuditLog(models.Model):
 
 	class Meta:
 		indexes = [models.Index(fields=["created_at", "status_code"]), models.Index(fields=["actor", "created_at"])]
+
+
+class SuspiciousActivityLog(models.Model):
+	category = models.CharField(max_length=80, db_index=True)
+	reference = models.CharField(max_length=120, db_index=True)
+	severity = models.CharField(max_length=20, default="MEDIUM", db_index=True)
+	details = models.JSONField(default=dict, blank=True)
+	resolved = models.BooleanField(default=False, db_index=True)
+	created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+	class Meta:
+		indexes = [models.Index(fields=["category", "created_at"]), models.Index(fields=["resolved", "created_at"])]
